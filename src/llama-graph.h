@@ -243,7 +243,7 @@ public:
         cparams(cparams),
         kv_state(kv_state) {
     }
-    virtual ~llm_graph_input_attn_kv_unified() = default;
+    ~llm_graph_input_attn_kv_unified() = default;
 
     void set_input(const llama_ubatch * ubatch) override;
 
