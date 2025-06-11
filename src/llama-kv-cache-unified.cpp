@@ -68,8 +68,8 @@ llama_kv_cache_unified::llama_kv_cache_unified(
             continue;
         }
 
-        const uint32_t n_embd_k_gqa = hparams.n_embd_k_gqa(il) + hparams.n_embd_k_s(il);
-        const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il) + hparams.n_embd_v_s(il);
+        const uint32_t n_embd_k_gqa = hparams.n_embd_k_gqa(il);
+        const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il);
 
         const char * dev_name = "CPU";
 
@@ -1429,7 +1429,7 @@ void llama_kv_cache_unified::state_write_data(llama_io_write_i & io, const std::
     for (const auto & layer : layers) {
         const uint32_t il = layer.il;
 
-        const uint32_t n_embd_k_gqa = hparams.n_embd_k_gqa(il) + hparams.n_embd_k_s(il);
+        const uint32_t n_embd_k_gqa = hparams.n_embd_k_gqa(il);
 
         // Write key type
         const int32_t k_type_i = (int32_t)layer.k->type;
@@ -1451,7 +1451,7 @@ void llama_kv_cache_unified::state_write_data(llama_io_write_i & io, const std::
         for (const auto & layer : layers) {
             const uint32_t il = layer.il;
 
-            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il) + hparams.n_embd_v_s(il);
+            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il);
 
             // Write value type
             const int32_t v_type_i = (int32_t)layer.v->type;
@@ -1475,7 +1475,7 @@ void llama_kv_cache_unified::state_write_data(llama_io_write_i & io, const std::
         for (const auto & layer : layers) {
             const uint32_t il = layer.il;
 
-            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il) + hparams.n_embd_v_s(il);
+            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il);
 
             // Write value type
             const int32_t v_type_i = (int32_t)layer.v->type;
@@ -1620,7 +1620,7 @@ bool llama_kv_cache_unified::state_read_data(llama_io_read_i & io, uint32_t cell
     for (const auto & layer : layers) {
         const uint32_t il = layer.il;
 
-        const uint32_t n_embd_k_gqa = hparams.n_embd_k_gqa(il) + hparams.n_embd_k_s(il);
+        const uint32_t n_embd_k_gqa = hparams.n_embd_k_gqa(il);
 
         // Read type of key
         int32_t k_type_i_ref;
@@ -1650,7 +1650,7 @@ bool llama_kv_cache_unified::state_read_data(llama_io_read_i & io, uint32_t cell
         for (const auto & layer : layers) {
             const uint32_t il = layer.il;
 
-            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il) + hparams.n_embd_v_s(il);
+            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il);
 
             // Read type of value
             int32_t v_type_i_ref;
@@ -1680,7 +1680,7 @@ bool llama_kv_cache_unified::state_read_data(llama_io_read_i & io, uint32_t cell
         for (const auto & layer : layers) {
             const uint32_t il = layer.il;
 
-            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il) + hparams.n_embd_v_s(il);
+            const uint32_t n_embd_v_gqa = hparams.n_embd_v_gqa(il);
 
             // Read type of value
             int32_t v_type_i_ref;
