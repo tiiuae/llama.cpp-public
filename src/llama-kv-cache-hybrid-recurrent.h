@@ -19,23 +19,30 @@
 
 class llama_kv_cache_hybrid_recurrent : public llama_memory_i {
 public:
+
+    // this callback is used to filter out layers that should not be included in the cache
+    using layer_filter_cb = std::function<bool(int32_t il)>;
+
     llama_kv_cache_hybrid_recurrent(
             const llama_model & model,
-                                /* attn */
-                    ggml_type   attn_type_k,
-                    ggml_type   attn_type_v,
-                         bool   attn_v_trans,
-                     uint32_t   attn_kv_size,
-                     uint32_t   attn_n_pad,
-                     uint32_t   attn_n_swa,
-               llama_swa_type   attn_swa_type,
-                                /* recurrent */
-                    ggml_type   recurrent_type_k,
-                    ggml_type   recurrent_type_v,
-                     uint32_t   recurrent_kv_size,
-                                /* common */
-                     uint32_t   n_seq_max,
-                         bool   offload);
+                                 /* attn */
+                    ggml_type    attn_type_k,
+                    ggml_type    attn_type_v,
+                         bool    attn_v_trans,
+                     uint32_t    attn_kv_size,
+                     uint32_t    attn_n_pad,
+                     uint32_t    attn_n_swa,
+               llama_swa_type    attn_swa_type,
+                                 /* recurrent */
+                    ggml_type    recurrent_type_k,
+                    ggml_type    recurrent_type_v,
+                     uint32_t    recurrent_kv_size,
+                                 /* common */
+                     uint32_t    n_seq_max,
+                         bool    offload,
+                                 /* layer filters */
+              layer_filter_cb && attn_filter      = nullptr,
+              layer_filter_cb && recurrent_filter = nullptr);
 
     ~llama_kv_cache_hybrid_recurrent() = default;
 
