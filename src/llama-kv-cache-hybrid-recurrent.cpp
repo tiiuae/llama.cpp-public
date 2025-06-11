@@ -10,25 +10,30 @@
 
 llama_kv_cache_hybrid_recurrent::llama_kv_cache_hybrid_recurrent(
     const llama_model & model,
-                        /* attn */
-            ggml_type   attn_type_k,
-            ggml_type   attn_type_v,
-                 bool   attn_v_trans,
-             uint32_t   attn_kv_size,
-             uint32_t   attn_n_pad,
-             uint32_t   attn_n_swa,
-       llama_swa_type   attn_swa_type,
-                        /* recurrent */
-            ggml_type   recurrent_type_k,
-            ggml_type   recurrent_type_v,
-             uint32_t   recurrent_kv_size,
-                        /* common */
-             uint32_t   n_seq_max,
-                 bool   offload) :
+                         /* attn */
+            ggml_type    attn_type_k,
+            ggml_type    attn_type_v,
+                 bool    attn_v_trans,
+             uint32_t    attn_kv_size,
+             uint32_t    attn_n_pad,
+             uint32_t    attn_n_swa,
+       llama_swa_type    attn_swa_type,
+                         /* recurrent */
+            ggml_type    recurrent_type_k,
+            ggml_type    recurrent_type_v,
+             uint32_t    recurrent_kv_size,
+                         /* common */
+             uint32_t    n_seq_max,
+                 bool    offload,
+                         /* layer filters */
+      layer_filter_cb && attn_filter,
+      layer_filter_cb && recurrent_filter) :
     hparams(model.hparams),
     kv_attn(new llama_kv_cache_unified(
         model,
-        [&](int32_t il) { return !model.hparams.recurrent_layer(il); },
+        attn_filter == nullptr ?
+            [&](int32_t il) { return !model.hparams.recurrent_layer(il); }
+            : attn_filter,
         attn_type_k,
         attn_type_v,
         attn_v_trans,
@@ -41,7 +46,9 @@ llama_kv_cache_hybrid_recurrent::llama_kv_cache_hybrid_recurrent(
     )),
     kv_recurrent(new llama_kv_cache_recurrent(
         model,
-        [&](int32_t il) { return model.hparams.recurrent_layer(il); },
+        recurrent_filter == nullptr ?
+            [&](int32_t il) { return model.hparams.recurrent_layer(il); }
+            : recurrent_filter,
         recurrent_type_k,
         recurrent_type_v,
         offload,
