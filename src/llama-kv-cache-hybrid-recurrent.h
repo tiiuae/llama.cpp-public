@@ -145,6 +145,6 @@ private:
     std::vector<uint32_t>     heads_attn;
     std::vector<llama_ubatch> ubatches;
 
-    const llama_kv_cache_unified_state_ptr   state_attn;
-    const llama_kv_cache_recurrent_state_ptr state_recurrent;
+    const llama_memory_state_ptr state_attn;
+    const llama_memory_state_ptr state_recurrent;
 };
