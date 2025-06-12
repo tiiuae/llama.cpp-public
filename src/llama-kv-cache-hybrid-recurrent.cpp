@@ -244,9 +244,9 @@ const llama_ubatch & llama_kv_cache_hybrid_recurrent_state::get_ubatch() const {
 }
 
 const llama_kv_cache_unified_state * llama_kv_cache_hybrid_recurrent_state::get_state_attn() const {
-    return state_attn.get();
+    return static_cast<const llama_kv_cache_unified_state *>(state_attn.get());
 }
 
 const llama_kv_cache_recurrent_state * llama_kv_cache_hybrid_recurrent_state::get_state_recurrent() const {
-    return state_recurrent.get();
+    return static_cast<const llama_kv_cache_recurrent_state *>(state_recurrent.get());
 }
