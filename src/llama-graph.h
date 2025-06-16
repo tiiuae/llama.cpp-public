@@ -622,6 +622,15 @@ struct llm_graph_context {
     // recurrent
     //
 
+    ggml_tensor * build_recurrent_state(
+        const llama_kv_cache_recurrent_state * kv_state,
+            ggml_cgraph * gf,
+            ggml_tensor * s,
+            ggml_tensor * state_copy,
+                int32_t   state_size,
+                int32_t   n_seqs,
+                   bool   avoid_copies = false) const;
+
     llm_graph_input_rs * build_rs_inp_recurrent() const;
 
     ggml_tensor * build_rs(
