@@ -60,8 +60,8 @@ llama_kv_cache_recurrent::llama_kv_cache_recurrent(
         return it->second;
     };
 
-    k_l.reserve(n_layer);
-    v_l.reserve(n_layer);
+    k_l.resize(n_layer);
+    v_l.resize(n_layer);
 
     for (int i = 0; i < n_layer; i++) {
         if (filter && !filter(i)) {
@@ -647,7 +647,9 @@ size_t llama_kv_cache_recurrent::size_k_bytes() const {
     size_t size_k_bytes = 0;
 
     for (const auto & k : k_l) {
-        size_k_bytes += ggml_nbytes(k);
+        if (k != nullptr) {
+            size_k_bytes += ggml_nbytes(k);
+        }
     }
 
     return size_k_bytes;
@@ -657,7 +659,9 @@ size_t llama_kv_cache_recurrent::size_v_bytes() const {
     size_t size_v_bytes = 0;
 
     for (const auto & v : v_l) {
-        size_v_bytes += ggml_nbytes(v);
+        if (v != nullptr) {
+            size_v_bytes += ggml_nbytes(v);
+        }
     }
 
     return size_v_bytes;
