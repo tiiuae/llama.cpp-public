@@ -1496,12 +1496,12 @@ ggml_tensor * llm_graph_context::build_attn(
 }
 ggml_tensor * llm_graph_context::build_recurrent_state(
     const llama_kv_cache_recurrent_state * kv_state,
-        ggml_cgraph * gf,
-        ggml_tensor * s,
-        ggml_tensor * state_copy,
-            int32_t   state_size,
-            int32_t   n_seqs,
-               bool   avoid_copies) const {
+         ggml_cgraph * gf,
+         ggml_tensor * s,
+         ggml_tensor * state_copy,
+             int32_t   state_size,
+             int32_t   n_seqs,
+    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)> & get_state_rows) const {
 
     const auto n_kv    = kv_state->get_n_kv();
     const auto kv_head = kv_state->get_head();
@@ -1516,17 +1516,11 @@ ggml_tensor * llm_graph_context::build_recurrent_state(
 
     ggml_tensor * output_states;
 
-    if (!avoid_copies) {
-        // copy states
-        // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
-        // {state_size, kv_size} -> {state_size, n_seqs}
-        output_states = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, state_copy, n_seqs, 0));
-        ggml_build_forward_expand(gf, output_states);
-    } else {
-        // FIXME: make the gathering operation happen before the copy below
-        //        (maybe with an optional lambda function passed as a parameter instead of `avoid_copies`?)
-        output_states = states;
-    }
+    // copy states
+    // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
+    // {state_size, kv_size} -> {state_size, n_seqs}
+    output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, state_copy, n_seqs, 0));
+    ggml_build_forward_expand(gf, output_states);
 
     // copy extra states which won't be changed further (between n_seqs and n_kv)
     ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, state_copy, n_kv - n_seqs, n_seqs*state_copy->nb[0]));
@@ -1559,10 +1553,10 @@ ggml_tensor * llm_graph_context::build_rs(
         ggml_tensor * s,
             int32_t   state_size,
             int32_t   n_seqs,
-               bool   avoid_copies) const {
+    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)> & get_state_rows) const {
 
     const auto * kv_state = static_cast<const llama_kv_cache_recurrent_state *>(mstate);
-    return build_recurrent_state(kv_state, gf, s, inp->s_copy, state_size, n_seqs, avoid_copies);
+    return build_recurrent_state(kv_state, gf, s, inp->s_copy, state_size, n_seqs, get_state_rows);
 }
 
 llm_graph_input_rs_hybrid_recurrent * llm_graph_context::build_rs_inp_hybrid_recurrent() const {
@@ -1585,10 +1579,10 @@ ggml_tensor * llm_graph_context::build_rs(
         ggml_tensor * s,
             int32_t   state_size,
             int32_t   n_seqs,
-               bool   avoid_copies) const {
+    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)> & get_state_rows) const {
 
     const auto * kv_state = static_cast<const llama_kv_cache_hybrid_recurrent_state *>(mstate)->get_state_recurrent();
-    return build_recurrent_state(kv_state, gf, s, inp->s_copy, state_size, n_seqs, avoid_copies);
+    return build_recurrent_state(kv_state, gf, s, inp->s_copy, state_size, n_seqs, get_state_rows);
 }
 
 ggml_tensor * llm_graph_context::build_rwkv_token_shift_load(
