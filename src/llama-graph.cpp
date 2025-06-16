@@ -1597,6 +1597,46 @@ ggml_tensor * llm_graph_context::build_rs(
     return output_states;
 }
 
+// ggml_tensor * llm_graph_context::build_rs(
+//         llm_graph_input_attn_kv_hybrid_recurrent * inp,
+//         ggml_cgraph * gf,
+//         ggml_tensor * s,
+//             int32_t   state_size,
+//             int32_t   n_seqs,
+//     const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
+//                     & get_state_rows) const {
+
+//     const auto * kv_state = static_cast<const llama_kv_cache_hybrid_recurrent_state *>(mstate)->get_state_recurrent();
+
+//     const auto n_kv    = kv_state->get_n_kv();
+//     const auto kv_head = kv_state->get_head();
+//     const auto rs_zero = kv_state->get_rs_z();
+
+//     ggml_tensor * states = ggml_reshape_2d(ctx0, s, state_size, kv_state->get_size());
+
+//     // Clear a single state which will then be copied to the other cleared states.
+//     // Note that this is a no-op when the view is zero-sized.
+//     ggml_tensor * state_zero = ggml_view_1d(ctx0, states, state_size*(rs_zero >= 0), rs_zero*states->nb[1]*(rs_zero >= 0));
+//     ggml_build_forward_expand(gf, ggml_scale_inplace(ctx0, state_zero, 0));
+
+//     ggml_tensor * output_states;
+
+//     // copy states
+//     // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
+//     // {state_size, kv_size} -> {state_size, n_seqs}
+//     output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_seqs, 0));
+//     ggml_build_forward_expand(gf, output_states);
+
+//     // copy extra states which won't be changed further (between n_seqs and n_kv)
+//     ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_kv - n_seqs, n_seqs*inp->s_copy->nb[0]));
+//     ggml_build_forward_expand(gf,
+//         ggml_cpy(ctx0,
+//             states_extra,
+//             ggml_view_1d(ctx0, s, state_size*(n_kv - n_seqs), (kv_head + n_seqs)*state_size*ggml_element_size(s))));
+
+//     return output_states;
+// }
+
 ggml_tensor * llm_graph_context::build_rwkv_token_shift_load(
     llm_graph_input_rs * inp,
            ggml_cgraph * gf,

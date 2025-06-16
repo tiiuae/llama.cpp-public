@@ -45,27 +45,26 @@ llama_kv_cache_recurrent::llama_kv_cache_recurrent(
                 /*.mem_buffer =*/ NULL,
                 /*.no_alloc   =*/ true,
             };
-
             ggml_context * ctx = ggml_init(params);
             if (!ctx) {
+                std::printf("Failed to create ggml context for kv cache\n");
                 return nullptr;
             }
-
             ctx_map[buft] = ctx;
             ctxs.emplace_back(ctx);
 
             return ctx;
         }
-
         return it->second;
     };
 
-    k_l.reserve(n_layer);
-    v_l.reserve(n_layer);
+    k_l.resize(n_layer);
+    v_l.resize(n_layer);
 
     for (int i = 0; i < n_layer; i++) {
         if (filter && !filter(i)) {
             LLAMA_LOG_DEBUG("%s: layer %3d: skipped\n", __func__, i);
+            std::printf("Entered here\n");
             continue;
         }
 
