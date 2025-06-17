@@ -604,6 +604,11 @@ ggml_tensor * llm_graph_context::build_ffn(
             case LLM_FFN_PAR:
                 {
                     cur = build_lora_mm(gate, cur);
+
+                    if (arch == LLM_ARCH_FALCON_H1) {
+                        cur = ggml_scale(ctx0, cur, hparams.mlp_gate_multiplier);
+                    }
+
                     cb(cur, "ffn_gate", il);
                 } break;
         }
@@ -690,6 +695,9 @@ ggml_tensor * llm_graph_context::build_ffn(
         if (arch == LLM_ARCH_GLM4) {
             // GLM4 seems to have numerical issues with half-precision accumulators
             ggml_mul_mat_set_prec(cur, GGML_PREC_F32);
+        }
+        if (arch == LLM_ARCH_FALCON_H1) {
+            cur = ggml_scale(ctx0, cur, hparams.mlp_down_multiplier);
         }
     }
 
@@ -1519,11 +1527,11 @@ ggml_tensor * llm_graph_context::build_recurrent_state(
     // copy states
     // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
     // {state_size, kv_size} -> {state_size, n_seqs}
-    output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_seqs, 0));
+    output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, state_copy, n_seqs, 0));
     ggml_build_forward_expand(gf, output_states);
 
     // copy extra states which won't be changed further (between n_seqs and n_kv)
-    ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_kv - n_seqs, n_seqs*inp->s_copy->nb[0]));
+    ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, state_copy, n_kv - n_seqs, n_seqs*state_copy->nb[0]));
     ggml_build_forward_expand(gf,
         ggml_cpy(ctx0,
             states_extra,

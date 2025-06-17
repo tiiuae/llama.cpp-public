@@ -4327,7 +4327,6 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             case LLM_ARCH_FALCON_H1:
                 {
                     // Common
-                    const float layer_norm_epsilon = hparams.f_norm_rms_eps; // TODO layer_norm_epsilon
                     const int64_t hidden_size = hparams.n_embd; // hidden_size
                     const int64_t vocab_size = hparams.vocab_size; // vocab_size
 
@@ -4338,17 +4337,12 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                     const int64_t ssm_intermediate_size = hparams.ssm_mamba_d_ssm > 0 ? hparams.ssm_mamba_d_ssm : int(hparams.mamba_expand * hidden_size); // TODO expand
                     const int64_t ssm_num_heads         = hparams.ssm_dt_rank; // ssm_num_heads
                     const int64_t ssm_conv_dim          = ssm_intermediate_size + 2 * ssm_n_groups * ssm_state_size;
-                    const int64_t ssm_head_dim          = hparams.ssm_head_dim; // ssm_head_dim
-                    const bool ssm_rms_norm             = hparams.mamba_rms_norm;
-                    const int64_t ssm_chunk_size        = hparams.chunk_size;
                     const int64_t ssm_projection_size   = ssm_intermediate_size + ssm_conv_dim + ssm_num_heads;
-                    const int64_t ssm_groups_time_state_size = ssm_n_groups * ssm_state_size; // groups_time_state_size
 
                     // attn params
                     const int64_t attn_num_attention_head = hparams.n_head(0); // rename to: attn_num_attention_head
                     const int64_t attn_num_key_value_head = hparams.n_head_kv(0);
                     const int64_t attn_head_dim = hparams.attn_head_dim > 0 ? hparams.attn_head_dim : hidden_size / attn_num_attention_head;
-                    const int64_t attn_num_key_value_groups = attn_num_attention_head / attn_num_key_value_head;
 
                     // ffn params
                     const int64_t ffn_intermediate_size = hparams.n_ff(0);
@@ -5564,59 +5558,51 @@ struct llm_build_falcon_h1 : public llm_graph_context {
             cur = ggml_scale(ctx0, cur, hparams.attention_in_multiplier);
 
             // self-attention
-            {
-                ggml_tensor * Qcur = build_lora_mm(model.layers[il].wq, cur);
-                cb(Qcur, "Qcur", il);
+            ggml_tensor * Qcur = build_lora_mm(model.layers[il].wq, cur);
+            cb(Qcur, "Qcur", il);
 
-                ggml_tensor * Kcur = build_lora_mm(model.layers[il].wk, cur);
-                cb(Kcur, "Kcur", il);
+            ggml_tensor * Kcur = build_lora_mm(model.layers[il].wk, cur);
+            cb(Kcur, "Kcur", il);
 
-                ggml_tensor * Vcur = build_lora_mm(model.layers[il].wv, cur);
-                cb(Vcur, "Vcur", il);
+            ggml_tensor * Vcur = build_lora_mm(model.layers[il].wv, cur);
+            cb(Vcur, "Vcur", il);
 
-                Qcur = ggml_reshape_3d(ctx0, Qcur, n_embd_head, n_head,    n_tokens);
-                Kcur = ggml_reshape_3d(ctx0, Kcur, n_embd_head, n_head_kv, n_tokens);
-                Kcur = ggml_scale(ctx0, Kcur, hparams.key_multiplier);
+            Qcur = ggml_reshape_3d(ctx0, Qcur, n_embd_head, n_head,    n_tokens);
+            Kcur = ggml_reshape_3d(ctx0, Kcur, n_embd_head, n_head_kv, n_tokens);
+            Kcur = ggml_scale(ctx0, Kcur, hparams.key_multiplier);
 
-                Vcur = ggml_reshape_3d(ctx0, Vcur, n_embd_head, n_head_kv, n_tokens);
+            Vcur = ggml_reshape_3d(ctx0, Vcur, n_embd_head, n_head_kv, n_tokens);
 
-                Qcur = ggml_rope_ext(
-                        ctx0, Qcur, inp_pos, nullptr,
-                        n_rot, 0, n_ctx_orig, freq_base, freq_scale,
-                        ext_factor, attn_factor, beta_fast, beta_slow);
+            Qcur = ggml_rope_ext(
+                    ctx0, Qcur, inp_pos, nullptr,
+                    n_rot, 0, n_ctx_orig, freq_base, freq_scale,
+                    ext_factor, attn_factor, beta_fast, beta_slow);
 
-                Kcur = ggml_rope_ext(
-                        ctx0, Kcur, inp_pos, nullptr,
-                        n_rot, 0, n_ctx_orig, freq_base, freq_scale,
-                        ext_factor, attn_factor, beta_fast, beta_slow
-                        );
+            Kcur = ggml_rope_ext(
+                    ctx0, Kcur, inp_pos, nullptr,
+                    n_rot, 0, n_ctx_orig, freq_base, freq_scale,
+                    ext_factor, attn_factor, beta_fast, beta_slow
+                    );
 
-                cb(Qcur, "Qcur", il);
-                cb(Kcur, "Kcur", il);
-                cb(Vcur, "Vcur", il);
+            cb(Qcur, "Qcur", il);
+            cb(Kcur, "Kcur", il);
+            cb(Vcur, "Vcur", il);
 
-                //std::printf("Here %d\n", il);
-                ggml_tensor * attn_out = build_attn(inp_attn, gf,
-                        model.layers[il].wo, NULL,
-                        Qcur, Kcur, Vcur, nullptr, nullptr, kq_scale, il);
-                //std::printf("Here %d - after\n", il);
-
-                attn_out = ggml_scale(ctx0, attn_out, hparams.attention_out_multiplier);
-                
-                cur = build_norm(inpL,
-                    model.layers[il].attn_norm, NULL,
-                    LLM_NORM_RMS, il);
-                // Mamba2 layer
-                // std::printf("Here 2\n");
-
-                cur = ggml_scale(ctx0, cur, hparams.ssm_in_multiplier);
-                ggml_tensor * ssm_out = build_mamba2_layer(inp_rs, gf, cur, ubatch, il);
-                ssm_out = ggml_scale(ctx0, ssm_out, hparams.ssm_out_multiplier);
-                // std::printf("Here\n");
-                // // Aggregation
-                cur = ggml_add(ctx0, attn_out, ssm_out);
-            }
-
+            ggml_tensor * attn_out = build_attn(inp_attn, gf,
+                    model.layers[il].wo, NULL,
+                    Qcur, Kcur, Vcur, nullptr, nullptr, kq_scale, il);
+            attn_out = ggml_scale(ctx0, attn_out, hparams.attention_out_multiplier);
+            
+            cur = build_norm(inpL,
+                model.layers[il].attn_norm, NULL,
+                LLM_NORM_RMS, il);
+            // Mamba2 layer
+            cur = ggml_scale(ctx0, cur, hparams.ssm_in_multiplier);
+            ggml_tensor * ssm_out = build_mamba2_layer(inp_rs, gf, inpSA, ubatch, il);
+            ssm_out = ggml_scale(ctx0, ssm_out, hparams.ssm_out_multiplier);
+            // // Aggregation
+            cur = ggml_add(ctx0, attn_out, ssm_out);
+            cur = ggml_add(ctx0, cur, inpSA);
             
             if (il == n_layer - 1) {
                 // skip computing output for unused tokens
@@ -5625,7 +5611,7 @@ struct llm_build_falcon_h1 : public llm_graph_context {
                 inpSA = ggml_get_rows(ctx0, inpSA, inp_out_ids);
             }
 
-            ggml_tensor * ffn_inp = ggml_add(ctx0, cur, inpSA);
+            ggml_tensor * ffn_inp = cur;
             cb(ffn_inp, "ffn_inp", il);
 
             // feed-forward network
