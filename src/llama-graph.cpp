@@ -140,6 +140,7 @@ void llm_graph_input_mean::set_input(const llama_ubatch * ubatch) {
 
         std::vector<uint64_t> sum(n_tokens, 0);
 
+        // TODO: fix indexing [UBATCH_IDX]
         for (int s = 0; s < n_seqs; ++s) {
             const llama_seq_id seq_id = ubatch->seq_id[s][0];
 
@@ -157,6 +158,7 @@ void llm_graph_input_mean::set_input(const llama_ubatch * ubatch) {
             }
         }
 
+        // TODO: fix indexing [UBATCH_IDX]
         for (int s = 0; s < n_seqs; ++s) {
             const llama_seq_id seq_id = ubatch->seq_id[s][0];
 
@@ -181,6 +183,7 @@ void llm_graph_input_cls::set_input(const llama_ubatch * ubatch) {
         uint32_t * data = (uint32_t *) cls->data;
         memset(cls->data, 0, n_tokens * ggml_element_size(cls));
 
+        // TODO: fix indexing [UBATCH_IDX]
         for (int s = 0; s < n_seqs; ++s) {
             const llama_seq_id seq_id = ubatch->seq_id[s][0];
 
@@ -211,6 +214,7 @@ void llm_graph_input_cls::set_input(const llama_ubatch * ubatch) {
         std::vector<int> last_pos(n_tokens, -1);
         std::vector<int> last_row(n_tokens, -1);
 
+        // TODO: fix indexing [UBATCH_IDX]
         for (int s = 0; s < n_seqs; ++s) {
             const llama_seq_id seq_id = ubatch->seq_id[s][0];
 
@@ -289,6 +293,7 @@ void llm_graph_input_attn_no_cache::set_input(const llama_ubatch * ubatch) {
                                 const int32_t ti = s0*n_seq_tokens + i;
                                 float f = -INFINITY;
 
+                                // TODO: fix indexing [UBATCH_IDX]
                                 for (int s = 0; s < ubatch->n_seq_id[s0]; ++s) {
                                     if (ubatch->seq_id[s0][s] == seq_id && ubatch->pos[ti] <= ubatch->pos[tj]) {
                                         if (hparams.use_alibi) {
@@ -328,6 +333,7 @@ void llm_graph_input_attn_no_cache::set_input(const llama_ubatch * ubatch) {
                                 const int32_t ti = s0*n_seq_tokens + i;
                                 float f = -INFINITY;
 
+                                // TODO: fix indexing [UBATCH_IDX]
                                 for (int s = 0; s < ubatch->n_seq_id[s0]; ++s) {
                                     if (ubatch->seq_id[s0][s] == seq_id) {
                                         if (hparams.use_alibi) {
@@ -390,6 +396,7 @@ void llm_graph_input_attn_cross::set_input(const llama_ubatch * ubatch) {
             for (int j = 0; j < n_tokens; ++j) {
                 for (int i = 0; i < n_enc; ++i) {
                     float f = -INFINITY;
+                    // TODO: fix indexing [UBATCH_IDX]
                     for (int s = 0; s < ubatch->n_seq_id[j]; ++s) {
                         const llama_seq_id seq_id = ubatch->seq_id[j][s];
                         if (cross->seq_ids_enc[i].find(seq_id) != cross->seq_ids_enc[i].end()) {
@@ -1487,6 +1494,43 @@ ggml_tensor * llm_graph_context::build_attn(
 
     return cur;
 }
+ggml_tensor * llm_graph_context::build_recurrent_state(
+    const llama_kv_cache_recurrent_state * kv_state,
+         ggml_cgraph * gf,
+         ggml_tensor * s,
+         ggml_tensor * state_copy,
+             int32_t   state_size,
+             int32_t   n_seqs,
+    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)> & get_state_rows) const {
+
+    const auto n_kv    = kv_state->get_n_kv();
+    const auto kv_head = kv_state->get_head();
+    const auto rs_zero = kv_state->get_rs_z();
+
+    ggml_tensor * states = ggml_reshape_2d(ctx0, s, state_size, kv_state->get_size());
+
+    // Clear a single state which will then be copied to the other cleared states.
+    // Note that this is a no-op when the view is zero-sized.
+    ggml_tensor * state_zero = ggml_view_1d(ctx0, states, state_size*(rs_zero >= 0), rs_zero*states->nb[1]*(rs_zero >= 0));
+    ggml_build_forward_expand(gf, ggml_scale_inplace(ctx0, state_zero, 0));
+
+    ggml_tensor * output_states;
+
+    // copy states
+    // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
+    // {state_size, kv_size} -> {state_size, n_seqs}
+    output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_seqs, 0));
+    ggml_build_forward_expand(gf, output_states);
+
+    // copy extra states which won't be changed further (between n_seqs and n_kv)
+    ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_kv - n_seqs, n_seqs*inp->s_copy->nb[0]));
+    ggml_build_forward_expand(gf,
+        ggml_cpy(ctx0,
+            states_extra,
+            ggml_view_1d(ctx0, s, state_size*(n_kv - n_seqs), (kv_head + n_seqs)*state_size*ggml_element_size(s))));
+
+    return output_states;
+}
 
 llm_graph_input_rs * llm_graph_context::build_rs_inp_recurrent() const {
     const auto * kv_state = static_cast<const llama_kv_cache_recurrent_state *>(mstate);
@@ -1509,38 +1553,10 @@ ggml_tensor * llm_graph_context::build_rs(
         ggml_tensor * s,
             int32_t   state_size,
             int32_t   n_seqs,
-    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
-                    & get_state_rows) const {
+    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)> & get_state_rows) const {
 
     const auto * kv_state = static_cast<const llama_kv_cache_recurrent_state *>(mstate);
-
-    const auto n_kv    = kv_state->get_n_kv();
-    const auto kv_head = kv_state->get_head();
-    const auto rs_zero = kv_state->get_rs_z();
-
-    ggml_tensor * states = ggml_reshape_2d(ctx0, s, state_size, kv_state->get_size());
-
-    // Clear a single state which will then be copied to the other cleared states.
-    // Note that this is a no-op when the view is zero-sized.
-    ggml_tensor * state_zero = ggml_view_1d(ctx0, states, state_size*(rs_zero >= 0), rs_zero*states->nb[1]*(rs_zero >= 0));
-    ggml_build_forward_expand(gf, ggml_scale_inplace(ctx0, state_zero, 0));
-
-    ggml_tensor * output_states;
-
-    // copy states
-    // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
-    // {state_size, kv_size} -> {state_size, n_seqs}
-    output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_seqs, 0));
-    ggml_build_forward_expand(gf, output_states);
-
-    // copy extra states which won't be changed further (between n_seqs and n_kv)
-    ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_kv - n_seqs, n_seqs*inp->s_copy->nb[0]));
-    ggml_build_forward_expand(gf,
-        ggml_cpy(ctx0,
-            states_extra,
-            ggml_view_1d(ctx0, s, state_size*(n_kv - n_seqs), (kv_head + n_seqs)*state_size*ggml_element_size(s))));
-
-    return output_states;
+    return build_recurrent_state(kv_state, gf, s, inp->s_copy, state_size, n_seqs, get_state_rows);
 }
 
 llm_graph_input_rs_hybrid_recurrent * llm_graph_context::build_rs_inp_hybrid_recurrent() const {
@@ -1563,79 +1579,11 @@ ggml_tensor * llm_graph_context::build_rs(
         ggml_tensor * s,
             int32_t   state_size,
             int32_t   n_seqs,
-    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
-                    & get_state_rows) const {
+    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)> & get_state_rows) const {
 
     const auto * kv_state = static_cast<const llama_kv_cache_hybrid_recurrent_state *>(mstate)->get_state_recurrent();
-
-    const auto n_kv    = kv_state->get_n_kv();
-    const auto kv_head = kv_state->get_head();
-    const auto rs_zero = kv_state->get_rs_z();
-
-    ggml_tensor * states = ggml_reshape_2d(ctx0, s, state_size, kv_state->get_size());
-
-    // Clear a single state which will then be copied to the other cleared states.
-    // Note that this is a no-op when the view is zero-sized.
-    ggml_tensor * state_zero = ggml_view_1d(ctx0, states, state_size*(rs_zero >= 0), rs_zero*states->nb[1]*(rs_zero >= 0));
-    ggml_build_forward_expand(gf, ggml_scale_inplace(ctx0, state_zero, 0));
-
-    ggml_tensor * output_states;
-
-    // copy states
-    // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
-    // {state_size, kv_size} -> {state_size, n_seqs}
-    output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_seqs, 0));
-    ggml_build_forward_expand(gf, output_states);
-
-    // copy extra states which won't be changed further (between n_seqs and n_kv)
-    ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_kv - n_seqs, n_seqs*inp->s_copy->nb[0]));
-    ggml_build_forward_expand(gf,
-        ggml_cpy(ctx0,
-            states_extra,
-            ggml_view_1d(ctx0, s, state_size*(n_kv - n_seqs), (kv_head + n_seqs)*state_size*ggml_element_size(s))));
-
-    return output_states;
+    return build_recurrent_state(kv_state, gf, s, inp->s_copy, state_size, n_seqs, get_state_rows);
 }
-
-// ggml_tensor * llm_graph_context::build_rs(
-//         llm_graph_input_attn_kv_hybrid_recurrent * inp,
-//         ggml_cgraph * gf,
-//         ggml_tensor * s,
-//             int32_t   state_size,
-//             int32_t   n_seqs,
-//     const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
-//                     & get_state_rows) const {
-
-//     const auto * kv_state = static_cast<const llama_kv_cache_hybrid_recurrent_state *>(mstate)->get_state_recurrent();
-
-//     const auto n_kv    = kv_state->get_n_kv();
-//     const auto kv_head = kv_state->get_head();
-//     const auto rs_zero = kv_state->get_rs_z();
-
-//     ggml_tensor * states = ggml_reshape_2d(ctx0, s, state_size, kv_state->get_size());
-
-//     // Clear a single state which will then be copied to the other cleared states.
-//     // Note that this is a no-op when the view is zero-sized.
-//     ggml_tensor * state_zero = ggml_view_1d(ctx0, states, state_size*(rs_zero >= 0), rs_zero*states->nb[1]*(rs_zero >= 0));
-//     ggml_build_forward_expand(gf, ggml_scale_inplace(ctx0, state_zero, 0));
-
-//     ggml_tensor * output_states;
-
-//     // copy states
-//     // NOTE: assuming the copy destinations are ALL contained between kv_head and kv_head + n_kv
-//     // {state_size, kv_size} -> {state_size, n_seqs}
-//     output_states = get_state_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_seqs, 0));
-//     ggml_build_forward_expand(gf, output_states);
-
-//     // copy extra states which won't be changed further (between n_seqs and n_kv)
-//     ggml_tensor * states_extra = ggml_get_rows(ctx0, states, ggml_view_1d(ctx0, inp->s_copy, n_kv - n_seqs, n_seqs*inp->s_copy->nb[0]));
-//     ggml_build_forward_expand(gf,
-//         ggml_cpy(ctx0,
-//             states_extra,
-//             ggml_view_1d(ctx0, s, state_size*(n_kv - n_seqs), (kv_head + n_seqs)*state_size*ggml_element_size(s))));
-
-//     return output_states;
-// }
 
 ggml_tensor * llm_graph_context::build_rwkv_token_shift_load(
     llm_graph_input_rs * inp,
@@ -1726,23 +1674,30 @@ void llm_graph_context::build_pooling(
                 ggml_tensor * inp_cls = build_inp_cls();
                 inp = ggml_get_rows(ctx0, inp, inp_cls);
 
-                if (cls != nullptr && cls_b != nullptr) {
+                if (cls) {
                     // classification head
                     // https://github.com/huggingface/transformers/blob/5af7d41e49bbfc8319f462eb45253dcb3863dfb7/src/transformers/models/roberta/modeling_roberta.py#L1566
-                    cur = ggml_add(ctx0, ggml_mul_mat(ctx0, cls, inp), cls_b);
+                    cur = ggml_mul_mat(ctx0, cls, inp);
+                    if (cls_b) {
+                        cur = ggml_add(ctx0, cur, cls_b);
+                    }
                     cur = ggml_tanh(ctx0, cur);
 
                     // some models don't have `cls_out`, for example: https://huggingface.co/jinaai/jina-reranker-v1-tiny-en
                     // https://huggingface.co/jinaai/jina-reranker-v1-tiny-en/blob/cb5347e43979c3084a890e3f99491952603ae1b7/modeling_bert.py#L884-L896
                     if (cls_out) {
-                        GGML_ASSERT(cls_out_b != nullptr);
-                        cur = ggml_add(ctx0, ggml_mul_mat(ctx0, cls_out, cur), cls_out_b);
+                        cur = ggml_mul_mat(ctx0, cls_out, cur);
+                        if (cls_out_b) {
+                            cur = ggml_add(ctx0, cur, cls_out_b);
+                        }
                     }
                 } else if (cls_out) {
                     // Single layer classification head (direct projection)
                     // https://github.com/huggingface/transformers/blob/f4fc42216cd56ab6b68270bf80d811614d8d59e4/src/transformers/models/bert/modeling_bert.py#L1476
-                    GGML_ASSERT(cls_out_b != nullptr);
-                    cur = ggml_add(ctx0, ggml_mul_mat(ctx0, cls_out, inp), cls_out_b);
+                    cur = ggml_mul_mat(ctx0, cls_out, inp);
+                    if (cls_out_b) {
+                        cur = ggml_add(ctx0, cur, cls_out_b);
+                    }
                 } else {
                     GGML_ABORT("RANK pooling requires either cls+cls_b or cls_out+cls_out_b");
                 }

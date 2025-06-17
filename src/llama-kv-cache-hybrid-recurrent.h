@@ -104,7 +104,6 @@ public:
 
     // init update
     explicit llama_kv_cache_hybrid_recurrent_state(
-        llama_kv_cache_hybrid_recurrent * kv,
            llama_kv_cache_unified_state * state_unified,
          llama_kv_cache_recurrent_state * state_recurrent);
 
@@ -135,14 +134,11 @@ public:
 private:
     const llama_memory_status status;
 
-    llama_kv_cache_hybrid_recurrent * kv;
-
     llama_sbatch sbatch;
 
     // the index of the next ubatch to process
     size_t i_next = 0;
 
-    std::vector<uint32_t>     heads_attn;
     std::vector<llama_ubatch> ubatches;
 
     const llama_memory_state_ptr state_attn;

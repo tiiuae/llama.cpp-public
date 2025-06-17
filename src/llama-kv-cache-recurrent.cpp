@@ -64,7 +64,6 @@ llama_kv_cache_recurrent::llama_kv_cache_recurrent(
     for (int i = 0; i < n_layer; i++) {
         if (filter && !filter(i)) {
             LLAMA_LOG_DEBUG("%s: layer %3d: skipped\n", __func__, i);
-            std::printf("Entered here\n");
             continue;
         }
 
@@ -361,9 +360,7 @@ llama_pos llama_kv_cache_recurrent::seq_pos_max(llama_seq_id seq_id) const {
     return result;
 }
 
-llama_memory_state_ptr llama_kv_cache_recurrent::init_batch(const llama_batch & batch, uint32_t n_ubatch, bool embd_pooled) {
-    GGML_UNUSED(embd_pooled);
-
+llama_memory_state_ptr llama_kv_cache_recurrent::init_batch(const llama_batch & batch, uint32_t n_ubatch, bool embd_all) {
     auto sbatch = llama_sbatch(batch, hparams.n_embd, false);
 
     std::vector<llama_ubatch> ubatches;
@@ -371,8 +368,8 @@ llama_memory_state_ptr llama_kv_cache_recurrent::init_batch(const llama_batch & 
     while (sbatch.n_tokens > 0) {
         llama_ubatch ubatch;
 
-        if (embd_pooled) {
-            // Pooled embeddings cannot be split across ubatches (yet)
+        if (embd_all) {
+            // if all tokens are output, split by sequence
             ubatch = sbatch.split_seq(n_ubatch);
         } else {
             ubatch = sbatch.split_equal(n_ubatch);
@@ -648,7 +645,9 @@ size_t llama_kv_cache_recurrent::size_k_bytes() const {
     size_t size_k_bytes = 0;
 
     for (const auto & k : k_l) {
-        size_k_bytes += ggml_nbytes(k);
+        if (k != nullptr) {
+            size_k_bytes += ggml_nbytes(k);
+        }
     }
 
     return size_k_bytes;
@@ -658,7 +657,9 @@ size_t llama_kv_cache_recurrent::size_v_bytes() const {
     size_t size_v_bytes = 0;
 
     for (const auto & v : v_l) {
-        size_v_bytes += ggml_nbytes(v);
+        if (v != nullptr) {
+            size_v_bytes += ggml_nbytes(v);
+        }
     }
 
     return size_v_bytes;

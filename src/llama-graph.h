@@ -394,7 +394,7 @@ struct llm_graph_params {
     const llama_memory_state_i * mstate;
     const llama_cross          * cross;
 
-    int32_t n_outputs;
+    uint32_t n_outputs;
 
     const llm_graph_cb & cb;
 };
@@ -428,8 +428,8 @@ struct llm_graph_context {
     const float norm_eps;
     const float norm_rms_eps;
 
-    const int32_t n_tokens;
-    const int32_t n_outputs;
+    const int64_t n_tokens;
+    const int64_t n_outputs;
     const int32_t n_ctx_orig; // yarn
 
     const enum llama_pooling_type pooling_type;
@@ -622,6 +622,16 @@ struct llm_graph_context {
     // recurrent
     //
 
+    ggml_tensor * build_recurrent_state(
+        const llama_kv_cache_recurrent_state * kv_state,
+            ggml_cgraph * gf,
+            ggml_tensor * s,
+            ggml_tensor * state_copy,
+                int32_t   state_size,
+                int32_t   n_seqs,
+        const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
+                        & get_state_rows = ggml_get_rows) const;
+
     llm_graph_input_rs * build_rs_inp_recurrent() const;
 
     ggml_tensor * build_rs(
@@ -630,7 +640,7 @@ struct llm_graph_context {
             ggml_tensor * s,
                 int32_t   state_size,
                 int32_t   n_seqs,
-       const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
+        const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
                         & get_state_rows = ggml_get_rows) const;
 
     llm_graph_input_rs_hybrid_recurrent * build_rs_inp_hybrid_recurrent() const;
@@ -641,17 +651,8 @@ struct llm_graph_context {
             ggml_tensor * s,
                 int32_t   state_size,
                 int32_t   n_seqs,
-       const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
+        const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
                         & get_state_rows = ggml_get_rows) const;
-
-    // ggml_tensor * build_rs(
-    //         llm_graph_input_attn_kv_hybrid_recurrent * inp,
-    //         ggml_cgraph * gf,
-    //         ggml_tensor * s,
-    //             int32_t   state_size,
-    //             int32_t   n_seqs,
-    //    const std::function<ggml_tensor * (ggml_context *, ggml_tensor * states, ggml_tensor * ids)>
-    //                     & get_state_rows = ggml_get_rows) const;
 
     ggml_tensor * build_rwkv_token_shift_load(
         llm_graph_input_rs * inp,
