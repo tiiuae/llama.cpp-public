@@ -5592,18 +5592,24 @@ struct llm_build_falcon_h1 : public llm_graph_context {
                     model.layers[il].wo, NULL,
                     Qcur, Kcur, Vcur, nullptr, nullptr, kq_scale, il);
             attn_out = ggml_scale(ctx0, attn_out, hparams.attention_out_multiplier);
+            cb(attn_out, "attn_out", il);
             
             cur = build_norm(inpL,
                 model.layers[il].attn_norm, NULL,
                 LLM_NORM_RMS, il);
             // Mamba2 layer
             cur = ggml_scale(ctx0, cur, hparams.ssm_in_multiplier);
-            ggml_tensor * ssm_out = build_mamba2_layer(inp_rs, gf, inpSA, ubatch, il);
+            cb(cur, "ssm_in", il);
+
+            ggml_tensor * ssm_out = build_mamba2_layer(inp_rs, gf, cur, ubatch, il);
             ssm_out = ggml_scale(ctx0, ssm_out, hparams.ssm_out_multiplier);
+            cb(ssm_out, "ssm_out", il);
+
             // // Aggregation
             cur = ggml_add(ctx0, attn_out, ssm_out);
-            cur = ggml_add(ctx0, cur, inpSA);
-            
+            inpSA = ggml_add(ctx0, cur, inpSA);
+            cb(cur, "layer_out", il);
+
             if (il == n_layer - 1) {
                 // skip computing output for unused tokens
                 ggml_tensor * inp_out_ids = build_inp_out_ids();
@@ -5611,26 +5617,24 @@ struct llm_build_falcon_h1 : public llm_graph_context {
                 inpSA = ggml_get_rows(ctx0, inpSA, inp_out_ids);
             }
 
-            ggml_tensor * ffn_inp = cur;
+            ggml_tensor * ffn_inp = inpSA;
             cb(ffn_inp, "ffn_inp", il);
 
             // feed-forward network
-            {
-                cur = build_norm(ffn_inp,
-                        model.layers[il].ffn_norm, NULL,
-                        LLM_NORM_RMS, il);
-                cb(cur, "ffn_norm", il);
+            cur = build_norm(ffn_inp,
+                    model.layers[il].ffn_pre_norm, NULL,
+                    LLM_NORM_RMS, il);
+            cb(cur, "ffn_norm", il);
 
-                cur = build_ffn(cur,
-                        model.layers[il].ffn_up,   NULL, NULL,
-                        model.layers[il].ffn_gate, NULL, NULL,
-                        model.layers[il].ffn_down, NULL, NULL,
-                        NULL,
-                        LLM_FFN_SILU, LLM_FFN_PAR, il);
-                cb(cur, "ffn_out", il);
-            }
+            cur = build_ffn(cur,
+                    model.layers[il].ffn_up,   model.layers[il].ffn_up_b, NULL,
+                    model.layers[il].ffn_gate, model.layers[il].ffn_gate_b, NULL,
+                    model.layers[il].ffn_down, model.layers[il].ffn_down_b, NULL,
+                    NULL,
+                    LLM_FFN_SILU, LLM_FFN_PAR, il);
+            cb(cur, "ffn_out", il);
 
-            cur = ggml_add(ctx0, cur, ffn_inp);
+            cur = ggml_add(ctx0, cur, inpSA);
 
             cur = build_cvec(cur, il);
             cb(cur, "l_out", il);
@@ -5642,7 +5646,7 @@ struct llm_build_falcon_h1 : public llm_graph_context {
         cur = inpL;
 
         cur = build_norm(cur,
-                model.output_norm, NULL,
+                model.final_norm, NULL,
                 LLM_NORM_RMS, -1);
 
         cb(cur, "result_norm", -1);
@@ -5796,7 +5800,7 @@ struct llm_build_falcon_h1 : public llm_graph_context {
 
         // {n_embd, n_seq_tokens, n_seqs} => {n_embd, n_tokens}
         cur = ggml_reshape_2d(ctx0, cur, cur->ne[0], n_seq_tokens * n_seqs);
-        // cb(cur, "mamba_out", il);
+        cb(cur, "mamba_out", il);
         return cur;
     }
 };
