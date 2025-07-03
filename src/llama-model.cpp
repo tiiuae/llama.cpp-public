@@ -14921,6 +14921,7 @@ struct llm_build_falcon_h1 : public llm_graph_context {
                 y = ggml_reshape_4d(ctx0, y, d_ssm / n_group, n_group, n_seq_tokens, n_seqs);
                 y = build_norm(y, model.layers[il].ssm_norm, NULL, LLM_NORM_RMS, il);
             }
+
             y = ggml_reshape_3d(ctx0, y, d_ssm, n_seq_tokens, n_seqs);
 
             // {d_inner, n_embd} @ {d_inner, n_seq_tokens, n_seqs} => {n_embd, n_seq_tokens, n_seqs}
