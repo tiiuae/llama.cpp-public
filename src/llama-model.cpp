@@ -14674,8 +14674,6 @@ struct llm_build_falcon_h1 : public llm_graph_context {
         // Build the inputs in the recurrent & kv cache
         auto * inp = build_inp_mem_hybrid();
 
-        auto * inp_attn = build_attn_inp_kv_unified();
-
         const float kq_scale = hparams.f_attention_scale == 0.0f ? 1.0f/sqrtf(float(n_embd_head)) : hparams.f_attention_scale;
 
         for (int il = 0; il < n_layer; ++il) {
@@ -14718,7 +14716,7 @@ struct llm_build_falcon_h1 : public llm_graph_context {
             cb(Kcur, "Kcur", il);
             cb(Vcur, "Vcur", il);
 
-            ggml_tensor * attn_out = build_attn(inp_attn, gf,
+            ggml_tensor * attn_out = build_attn(inp, gf,
                     model.layers[il].wo, NULL,
                     Qcur, Kcur, Vcur, nullptr, nullptr, kq_scale, il);
             attn_out = ggml_scale(ctx0, attn_out, hparams.attention_out_multiplier);
