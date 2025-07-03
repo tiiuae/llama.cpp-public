@@ -15101,14 +15101,6 @@ llama_memory_i * llama_model::create_memory(const llama_memory_params & params, 
 
                     cparams.n_ctx = GGML_PAD(cparams.n_ctx, padding);
 
-                    // -> attn_filter
-                    // if falcon-h1 -> [&](int32_t il) { return true; }
-                    // case LLM_ARCH_FALCON_H1:
-                    //     llama_memory_hybrid::layer_filter_cb filter_attn = [](int32_t /*il*/) { return true; };
-                    //     llama_memory_hybrid::layer_filter_cb filter_recr = [](int32_t /*il*/) { return true; };
-                    // default:
-                    //     llama_memory_hybrid::layer_filter_cb filter_attn = nullptr;
-                    //     llama_memory_hybrid::layer_filter_cb filter_recr = nullptr;
 
                     res = new llama_memory_hybrid(
                         /* model             */ *this,
@@ -15123,7 +15115,9 @@ llama_memory_i * llama_model::create_memory(const llama_memory_params & params, 
                         /* recurrent_type_v  */ GGML_TYPE_F32,
                         /* recurrent_kv_size */ std::max((uint32_t) 1, cparams.n_seq_max),
                         /* n_seq_max         */ cparams.n_seq_max,
-                        /* offload           */ cparams.offload_kqv);
+                        /* offload           */ cparams.offload_kqv,
+                        /* filter_attn       */ (arch == LLM_ARCH_FALCON_H1) ? [&](int32_t) { return true; } : (llama_memory_hybrid::layer_filter_cb)nullptr,
+                        /* filter_recr       */ (arch == LLM_ARCH_FALCON_H1) ? [&](int32_t) { return true; } : (llama_memory_hybrid::layer_filter_cb)nullptr);
                 } else {
                     const auto padding = llama_kv_cache_unified::get_padding(cparams);
 
