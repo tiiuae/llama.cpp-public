@@ -10203,7 +10203,7 @@ struct llm_build_mamba : public llm_graph_context {
 
         // {n_embd, n_seq_tokens, n_seqs} => {n_embd, n_tokens}
         cur = ggml_reshape_2d(ctx0, cur, cur->ne[0], n_seq_tokens * n_seqs);
-        // cb(cur, "mamba_out", il);
+        cb(cur, "mamba_out", il);
 
         return cur;
     }
@@ -14697,6 +14697,7 @@ struct llm_build_falcon_h1 : public llm_graph_context {
 
             Qcur = ggml_reshape_3d(ctx0, Qcur, n_embd_head, n_head,    n_tokens);
             Kcur = ggml_reshape_3d(ctx0, Kcur, n_embd_head, n_head_kv, n_tokens);
+
             Kcur = ggml_scale(ctx0, Kcur, hparams.key_multiplier);
 
             Vcur = ggml_reshape_3d(ctx0, Vcur, n_embd_head, n_head_kv, n_tokens);
