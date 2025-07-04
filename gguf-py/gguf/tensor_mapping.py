@@ -589,6 +589,7 @@ class TensorNameMap:
         MODEL_TENSOR.SSM_OUT: (
             "model.layers.{bid}.out_proj",
             "backbone.layers.{bid}.mixer.out_proj",
+            "model.layers.{bid}.mamba.out_proj",          # falcon-h1
         ),
 
         MODEL_TENSOR.TIME_MIX_W0: (

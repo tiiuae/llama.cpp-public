@@ -686,6 +686,9 @@ class TextModel(ModelBase):
         if chkhsh == "9d032fcbd5501f4a38150912590928bfb36091efb5df11b8e2124b0390e3fb1e":
             # ref: https://huggingface.co/tiiuae/Falcon3-7B-Base
             res = "falcon3"
+        if chkhsh == "60476e1243776c4fb1b993dbd7a5f15ac22f83c80afdf425fa5ae01c8d44ef86":
+            # ref: https://huggingface.co/collections/tiiuae/falcon-h1-6819f2795bc406da60fab8df
+            res = "falcon-H1"
         if chkhsh == "8e62295832751ca1e8f92f2226f403dea30dc5165e448b5bfa05af5340c64ec7":
             # ref: https://huggingface.co/BAAI/bge-large-zh-v1.5
             res = "bert-bge-large"
@@ -4905,8 +4908,11 @@ class Mamba2Model(TextModel):
 
         # Fail early for models which don't have a block expansion factor of 2
         # TODO: does this really matter?
-        assert d_inner == 2 * d_model
-        assert d_inner % head_dim == 0
+        # skip the assertion for FalconH1 Model
+        architectures = self.hparams.get("architectures")
+        if architectures is None or architectures[0] != "FalconH1ForCausalLM":
+            assert d_inner == 2 * d_model
+            assert d_inner % head_dim == 0
 
         self.gguf_writer.add_context_length(2**20)  # arbitrary value; for those who use the default
         self.gguf_writer.add_embedding_length(d_model)
@@ -4945,6 +4951,10 @@ class Mamba2Model(TextModel):
             d_model = self.find_hparam(["hidden_size", "d_model", "dim"])
             d_inner = self.find_hparam(["intermediate_size", "d_inner"], optional=True) or 2 * d_model
             n_group = self.hparams.get("n_groups", 1)
+            architectures = self.hparams.get("architectures")
+            if architectures is not None and architectures[0] == "FalconH1ForCausalLM":
+                # FalconH1F has a different d_inner
+                d_inner = self.hparams.get("mamba_d_ssm")
             data_torch = data_torch.reshape((n_group, d_inner // n_group))
 
         if name.endswith(".A_log"):
