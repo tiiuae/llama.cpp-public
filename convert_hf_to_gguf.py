@@ -607,7 +607,14 @@ class TextModel(ModelBase):
 
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(self.dir_model)
+<<<<<<< HEAD
         vocab_size = self.hparams.get("vocab_size", len(tokenizer.vocab))
+=======
+        vocab_size = min(
+            self.hparams.get("vocab_size", len(tokenizer.vocab)),
+            len(tokenizer.vocab)
+        )
+>>>>>>> 250b4f1074da288399e71577a925aa83acf316d5
         assert max(tokenizer.vocab.values()) < vocab_size
 
         tokpre = self.get_vocab_base_pre(tokenizer)
