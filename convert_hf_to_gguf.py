@@ -6606,6 +6606,8 @@ class FalconH1Model(Mamba2Model):
         for name, tensor in super().get_tensors():
             if name.startswith("model.backbone") or name.startswith("model.lm_head"):
                 name = name.removeprefix("model.")
+            if "ffn_pre_norm" in name:
+                name = name.replace("ffn_pre_norm", "ffn_norm")
             yield name, tensor
 
             if self.ssm_multipliers is not None:
