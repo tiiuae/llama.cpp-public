@@ -688,7 +688,7 @@ class TextModel(ModelBase):
             res = "falcon3"
         if chkhsh == "60476e1243776c4fb1b993dbd7a5f15ac22f83c80afdf425fa5ae01c8d44ef86":
             # ref: https://huggingface.co/collections/tiiuae/falcon-h1-6819f2795bc406da60fab8df
-            res = "falcon-H1"
+            res = "falcon_h1"
         if chkhsh == "8e62295832751ca1e8f92f2226f403dea30dc5165e448b5bfa05af5340c64ec7":
             # ref: https://huggingface.co/BAAI/bge-large-zh-v1.5
             res = "bert-bge-large"
