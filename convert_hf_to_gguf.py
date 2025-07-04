@@ -689,7 +689,12 @@ class TextModel(ModelBase):
         if chkhsh == "9d032fcbd5501f4a38150912590928bfb36091efb5df11b8e2124b0390e3fb1e":
             # ref: https://huggingface.co/tiiuae/Falcon3-7B-Base
             res = "falcon3"
-        if chkhsh == "60476e1243776c4fb1b993dbd7a5f15ac22f83c80afdf425fa5ae01c8d44ef86":
+        if chkhsh in [
+            "60476e1243776c4fb1b993dbd7a5f15ac22f83c80afdf425fa5ae01c8d44ef86",
+            "a6b57017d60e6edb4d88ecc2845188e0eb333a70357e45dcc9b53964a73bbae6",
+            "3eda48b4c4dc7de733d1a8b3e3b4a85243dbbf704da2ee9d42c6beced8897896",
+            "48f8e02c0359c0bbdd82f26909171fac1c18a457bb47573ed1fe3bbb2c1cfd4b"
+        ]:
             # ref: https://huggingface.co/collections/tiiuae/falcon-h1-6819f2795bc406da60fab8df
             res = "falcon_h1"
         if chkhsh == "8e62295832751ca1e8f92f2226f403dea30dc5165e448b5bfa05af5340c64ec7":
@@ -6572,6 +6577,7 @@ class FalconH1Model(Mamba2Model):
         self.has_attention = True  # Falcon Mamba2 has attention components
 
         # Load Falcon-H1 multipliers from hyperparameters
+        self.key_multiplier = self.find_hparam(["key_multiplier"], optional=True)
         self.attention_in_multiplier = self.find_hparam(["attention_in_multiplier"], optional=True)
         self.attention_out_multiplier = self.find_hparam(["attention_out_multiplier"], optional=True)
         self.ssm_in_multiplier = self.find_hparam(["ssm_in_multiplier"], optional=True)
@@ -6590,7 +6596,7 @@ class FalconH1Model(Mamba2Model):
         keys = list(keys) + prefixed
         return super().find_hparam(keys, *args, **kwargs)
 
-    def _generate_mup_vector(self, block_id: int) -> torch.Tensor:
+    def _generate_mup_vector(self) -> torch.Tensor:
         zxbcdt_multipliers = self.hparams["ssm_multipliers"]
         intermediate_size = self.hparams["mamba_d_ssm"]
         groups_time_state_size = self.hparams["mamba_n_groups"] * self.hparams["mamba_d_state"]
@@ -6609,19 +6615,37 @@ class FalconH1Model(Mamba2Model):
         for name, tensor in super().get_tensors():
             if name.startswith("model.backbone") or name.startswith("model.lm_head"):
                 name = name.removeprefix("model.")
-            yield name, tensor
 
-            if self.ssm_multipliers is not None:
-                # Insert MUP vector after mamba.dt_bias
-                if "mamba.dt_bias" in name:
-                    block_match = re.search(r"(?:model\.layers\.)?(\d+)\.mamba\.dt_bias", name)
-                    if block_match:
-                        block_id = int(block_match.group(1))
-                        # Generate MUP vector with correct name format
-                        mup_tensor = self._generate_mup_vector(block_id)
-                        mup_name = f"blk.{block_id}.ssm_mup_vec"
-                        logger.debug(f"Inserting MUP vector for block {block_id}: {mup_name}")
-                        yield mup_name, mup_tensor
+            if "down_proj" in name:
+                tensor = tensor * self.mlp_multipliers[1]
+            elif "gate_proj" in name:
+                tensor = tensor * self.mlp_multipliers[0]
+            elif "k_proj" in name:
+                tensor = tensor * self.key_multiplier * self.attention_in_multiplier
+            elif "q_proj" in name:
+                tensor = tensor * self.attention_in_multiplier
+            elif "v_proj" in name:
+                tensor = tensor * self.attention_in_multiplier
+            elif "o_proj" in name:
+                tensor = tensor * self.attention_out_multiplier
+            elif "out_proj" in name:
+                tensor = tensor * self.ssm_out_multiplier
+            elif "in_proj" in name:
+                tensor = tensor * self.ssm_in_multiplier
+                zxbcdt_multipliers = self.hparams["ssm_multipliers"]
+                intermediate_size = self.hparams["mamba_d_ssm"]
+                groups_time_state_size = self.hparams["mamba_n_groups"] * self.hparams["mamba_d_state"]
+                tensor[:intermediate_size, :] *= zxbcdt_multipliers[0]
+                tensor[intermediate_size:2 * intermediate_size, :] *= zxbcdt_multipliers[1]
+                tensor[2 * intermediate_size:2 * intermediate_size + groups_time_state_size, :] *= zxbcdt_multipliers[2]
+                tensor[2 * intermediate_size + groups_time_state_size:2 * intermediate_size + 2 * groups_time_state_size, :] *= zxbcdt_multipliers[3]
+                tensor[2 * intermediate_size + 2 * groups_time_state_size:, :] *= zxbcdt_multipliers[4]
+            elif "lm_head" in name:
+                tensor = tensor * self.hparams["lm_head_multiplier"]
+            elif "embed_tokens" in name:
+                tensor = tensor * self.hparams["embedding_multiplier"]
+
+            yield name, tensor
 
     def set_gguf_parameters(self):
         super().set_gguf_parameters()

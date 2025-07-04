@@ -1177,10 +1177,6 @@ class TensorNameMap:
             "resampler.attn.out_proj",
         ),
 
-        MODEL_TENSOR.SSM_MUP_VEC: (
-            "model.layers.{bid}.mamba.mup_vector",            # falcon_h1
-        ),
-
         MODEL_TENSOR.SSM_NORM: (
             "model.layers.{bid}.mamba.norm",
         ),
