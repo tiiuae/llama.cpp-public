@@ -607,10 +607,7 @@ class TextModel(ModelBase):
 
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(self.dir_model)
-        vocab_size = max(
-            self.hparams.get("vocab_size", len(tokenizer.vocab)),
-            len(tokenizer.vocab)
-        )
+        vocab_size = self.hparams.get("vocab_size", len(tokenizer.vocab))
         assert max(tokenizer.vocab.values()) < vocab_size
 
         tokpre = self.get_vocab_base_pre(tokenizer)
@@ -4885,6 +4882,9 @@ class Mamba2Model(TextModel):
         pad_vocab = self.hparams.get("pad_vocab_size_multiple", 16)
         # pad using ceiling division
         # ref: https://stackoverflow.com/a/17511341/22827863
+        # if architecture is FalconH1, don't pad vocab size
+        if self.hparams.get("architectures", [None])[0] == "FalconH1ForCausalLM":
+            pad_vocab = 1
         vocab_size = -(vocab_size // -pad_vocab) * pad_vocab
         self.hparams["vocab_size"] = vocab_size
 
