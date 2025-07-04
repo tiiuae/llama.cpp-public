@@ -1068,7 +1068,7 @@ static const std::map<llm_arch, std::map<llm_tensor, const char *>> LLM_TENSOR_N
             { LLM_TENSOR_SSM_D,           "blk.%d.ssm_d" },
             { LLM_TENSOR_SSM_NORM,        "blk.%d.ssm_norm" },
             { LLM_TENSOR_SSM_OUT,         "blk.%d.ssm_out" },
-            { LLM_TENSOR_FFN_NORM,    "blk.%d.ffn_norm" },
+            { LLM_TENSOR_FFN_NORM,        "blk.%d.ffn_norm" },
             { LLM_TENSOR_FFN_GATE,        "blk.%d.ffn_gate" },
             { LLM_TENSOR_FFN_DOWN,        "blk.%d.ffn_down" },
             { LLM_TENSOR_FFN_UP,          "blk.%d.ffn_up" },
