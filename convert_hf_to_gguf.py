@@ -6645,11 +6645,11 @@ class FalconH1Model(Mamba2Model):
         self.gguf_writer.add_layer_norm_rms_eps(self.hparams["rms_norm_eps"])
         self.gguf_writer.add_key_length(self.hparams["head_dim"])
         self.gguf_writer.add_value_length(self.hparams["head_dim"])
-        self.gguf_writer.add_float32("falcon_h1.key_multiplier", self.hparams["key_multiplier"])
+        self.gguf_writer.add_float64("falcon_h1.key_multiplier", self.hparams["key_multiplier"])
 
         ## Other params
-        self.gguf_writer.add_float32("falcon_h1.lm_head_multiplier", self.hparams["lm_head_multiplier"])
-        self.gguf_writer.add_float32("falcon_h1.embedding_multiplier", self.hparams["embedding_multiplier"])
+        self.gguf_writer.add_float64("falcon_h1.lm_head_multiplier", self.hparams["lm_head_multiplier"])
+        self.gguf_writer.add_float64("falcon_h1.embedding_multiplier", self.hparams["embedding_multiplier"])
 
         ## Validation ##
         assert self.hparams.get("hidden_act") in [None, "silu"], "Only SILU activation supported"
@@ -6666,15 +6666,15 @@ class FalconH1Model(Mamba2Model):
                                     self.find_hparam(["num_attention_heads"]))
 
         # Add multipliers as metadata instead of tensors
-        self.gguf_writer.add_float32("falcon_h1.attention_in_multiplier", self.attention_in_multiplier)
-        self.gguf_writer.add_float32("falcon_h1.attention_out_multiplier", self.attention_out_multiplier)
-        self.gguf_writer.add_float32("falcon_h1.ssm_in_multiplier", self.ssm_in_multiplier)
-        self.gguf_writer.add_float32("falcon_h1.ssm_out_multiplier", self.ssm_out_multiplier)
+        self.gguf_writer.add_float64("falcon_h1.attention_in_multiplier", self.attention_in_multiplier)
+        self.gguf_writer.add_float64("falcon_h1.attention_out_multiplier", self.attention_out_multiplier)
+        self.gguf_writer.add_float64("falcon_h1.ssm_in_multiplier", self.ssm_in_multiplier)
+        self.gguf_writer.add_float64("falcon_h1.ssm_out_multiplier", self.ssm_out_multiplier)
 
         # Add MLP multipliers
         if isinstance(self.mlp_multipliers, (list, tuple)) and len(self.mlp_multipliers) == 2:
-            self.gguf_writer.add_float32("falcon_h1.mlp_gate_multiplier", self.mlp_multipliers[0])
-            self.gguf_writer.add_float32("falcon_h1.mlp_down_multiplier", self.mlp_multipliers[1])
+            self.gguf_writer.add_float64("falcon_h1.mlp_gate_multiplier", self.mlp_multipliers[0])
+            self.gguf_writer.add_float64("falcon_h1.mlp_down_multiplier", self.mlp_multipliers[1])
 
         # Add has MuP flag if SSM multipliers are present
         if self.ssm_multipliers is not None:
@@ -6684,7 +6684,7 @@ class FalconH1Model(Mamba2Model):
         self.gguf_writer.add_bool("falcon_h1.mamba_use_mlp", self.find_hparam(["mamba_use_mlp"], optional=True))
         self.gguf_writer.add_bool("falcon_h1.mamba_norm_before_gate", self.find_hparam(["mamba_norm_before_gate"], optional=True))
         self.gguf_writer.add_bool("falcon_h1.mamba_rms_norm", self.find_hparam(["mamba_rms_norm"], optional=True))
-        self.gguf_writer.add_float32("falcon_h1.rope_theta", self.find_hparam(["rope_theta"], optional=True))
+        self.gguf_writer.add_float64("falcon_h1.rope_theta", self.find_hparam(["rope_theta"], optional=True))
 
 ###### CONVERSION LOGIC ######
 
