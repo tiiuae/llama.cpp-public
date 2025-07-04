@@ -1177,7 +1177,7 @@ class TensorNameMap:
         ),
 
         MODEL_TENSOR.SSM_MUP_VEC: (
-            "model.layers.{bid}.mamba.mup_vector",            # falcon-h1
+            "model.layers.{bid}.mamba.mup_vector",            # falcon_h1
         ),
 
         MODEL_TENSOR.SSM_NORM: (
