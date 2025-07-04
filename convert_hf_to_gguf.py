@@ -607,7 +607,7 @@ class TextModel(ModelBase):
 
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(self.dir_model)
-        vocab_size = max(
+        vocab_size = min(
             self.hparams.get("vocab_size", len(tokenizer.vocab)),
             len(tokenizer.vocab)
         )
