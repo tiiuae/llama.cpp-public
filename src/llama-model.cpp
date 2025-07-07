@@ -14911,6 +14911,8 @@ struct llm_build_falcon_h1 : public llm_graph_context {
         // inp_pos - contains the positions
         ggml_tensor * inp_pos = build_inp_pos();
 
+        ggml_tensor * inp_out_ids = build_inp_out_ids();
+
         // Build the inputs in the recurrent & kv cache
         auto * inp = build_inp_mem_hybrid();
 
@@ -14981,7 +14983,6 @@ struct llm_build_falcon_h1 : public llm_graph_context {
 
             if (il == n_layer - 1) {
                 // skip computing output for unused tokens
-                ggml_tensor * inp_out_ids = build_inp_out_ids();
                 cur   = ggml_get_rows(ctx0,   cur, inp_out_ids);
                 inpSA = ggml_get_rows(ctx0, inpSA, inp_out_ids);
             }
